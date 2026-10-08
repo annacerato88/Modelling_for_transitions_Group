@@ -58,7 +58,7 @@ def propagate_profiles(df, model_years, t_res):
     
     return ret
 
-def preprocess_demand(db_dir, years, t_res):
+def preprocess_demand(db_dir, years, t_res, K, s0, R, r, T0):
     """Prepare demand data and and demand profiles for the model."""
     # 1. Import and interpolate demand data
     demands = pd.read_excel(f"{db_dir}//demand.xlsx", sheet_name="demands", index_col=0)

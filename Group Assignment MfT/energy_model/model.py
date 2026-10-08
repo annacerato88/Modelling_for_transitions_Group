@@ -24,8 +24,24 @@ from .preprocessing import (
 def annuity(disc_rate, life):
     return disc_rate / (1.0 - 1.0 / (1.0 + disc_rate) ** life)
 
-def investment_cost(technology, year, techs_d, rt): 
-    capex = techs_d.at[(technology,'CAPEX'),year] 
+# NEW: changed how investment costs are calculate to include subsidies 
+def investment_cost(technology, year, techs_d, rt, subsidy_growth):
+    capex = techs_d.at[(technology, 'CAPEX'), year]
+
+    # only apply the subsidy mechanism if this technology has a Subsidy row
+    if (technology, 'Subsidy') in techs_d.index: 
+        subsidy = techs_d.at[(technology, 'Subsidy'), year]
+
+        # if no subsidy this year and subsidy growth is higher than 0 [so not baseline scenario], take the previous year's subsidy
+        if subsidy == 0 and subsidy_growth > 0.0:
+            years = list(techs_d.columns)
+            i = years.index(year)
+            if i > 0:
+                subsidy = techs_d.at[(technology, 'Subsidy'), years[i - 1]]
+
+        subsidy = subsidy * (1 + subsidy_growth)
+        capex = max(capex - subsidy, 0) # a subsidy shouldn't make CAPEX negative
+
     fom = techs_d.at[(technology,'FOM'),year] 
     lt = techs_d.at[(technology,'Lifetime'),year]
     return (capex*annuity(rt, lt) + fom) # (€/activity output unit) 
@@ -121,7 +137,7 @@ def model_run(db_dir, years, t_res, passenger_cars_cf, rt, rs, subsidy_growth, K
     # Call the preprocessing functions and store their outputs.
     
     demands, demand_profiles_prj = preprocess_demand(
-            db_dir, years, t_res
+            db_dir, years, t_res, K, s0, r, R, T0
         )
     resources, resources_pars, ren_profiles = preprocess_supply(
             db_dir, years, t_res
@@ -266,7 +282,7 @@ def model_run(db_dir, years, t_res, passenger_cars_cf, rt, rs, subsidy_growth, K
 
                 p_max_pu = ren_profiles[bus0].values, # apply renewable profiles as max availability factors
                 build_year = max([start_year(techs_s,t,years),y]),  # make sure t won't be built before its start_year
-                capital_cost = investment_cost(t, y, techs_d, rt),
+                capital_cost = investment_cost(t, y, techs_d, rt, subsidy_growth),
                 marginal_cost = techs_d.at[(t,'VOM'),y],
                 lifetime = techs_d.at[(t,'Lifetime'),y],
                 efficiency = techs_d.at[(t,'Efficiency'),y],
@@ -312,7 +328,7 @@ def model_run(db_dir, years, t_res, passenger_cars_cf, rt, rs, subsidy_growth, K
                         p_nom_min = cap_constraints.at[(t,'min'),y] / techs_d.at[(t,'Efficiency'), y],
 
                         build_year = max([start_year(techs_s,t,years),y]),
-                        capital_cost = investment_cost(t, y, techs_d, rt) * techs_d.at[(t,'Efficiency'), y], # for links costs are expressed in €/activity unit input
+                        capital_cost = investment_cost(t, y, techs_d, rt, subsidy_growth) * techs_d.at[(t,'Efficiency'), y], # for links costs are expressed in €/activity unit input
                         marginal_cost = techs_d.at[(t,'VOM'), y] + bus_cost['bus0'] + bus_cost['bus1']*techs_d.at[(t,'Efficiency'), y], # VOM + any costs associated with the inputs or the outputs
                         lifetime = techs_d.at[(t,'Lifetime'), y],
                         efficiency = techs_d.at[(t,'Efficiency'), y],
@@ -333,7 +349,7 @@ def model_run(db_dir, years, t_res, passenger_cars_cf, rt, rs, subsidy_growth, K
                         bus2 = topology.at['bus2','Value'],
                         p_nom_extendable = True,
                         build_year = max([start_year(techs_s,t,years),y]),
-                        capital_cost = investment_cost(t, y, techs_d, rt) * techs_d.at[(t,'Efficiency'), y], 
+                        capital_cost = investment_cost(t, y, techs_d, rt, subsidy_growth) * techs_d.at[(t,'Efficiency'), y], 
                         marginal_cost = techs_d.at[(t,'VOM'), y] + bus_cost['bus0'] + bus_cost['bus1']*eff1 + bus_cost['bus2']*eff2,
                         lifetime = techs_d.at[(t,'Lifetime'), y],
                         efficiency = eff1,
@@ -356,7 +372,7 @@ def model_run(db_dir, years, t_res, passenger_cars_cf, rt, rs, subsidy_growth, K
                         bus3 = topology.at['bus3', 'Value'],
                         p_nom_extendable = True,
                         build_year = max([start_year(techs_s,t,years),y]),
-                        capital_cost = investment_cost(t, y, techs_d, rt) * techs_d.at[(t,'Efficiency'), y], 
+                        capital_cost = investment_cost(t, y, techs_d, rt, subsidy_growth) * techs_d.at[(t,'Efficiency'), y], 
                         marginal_cost = techs_d.at[(t,'VOM'), y] + bus_cost['bus0'] + bus_cost['bus1']*eff1 + bus_cost['bus2']*eff2 + bus_cost['bus3']*eff3,
                         lifetime = techs_d.at[(t,'Lifetime'), y],
                         efficiency = eff1,
@@ -371,7 +387,7 @@ def model_run(db_dir, years, t_res, passenger_cars_cf, rt, rs, subsidy_growth, K
                 f'{t}_{y}',
                 bus = techs_s.at[(t,'bus0'), 'Value'],
                 carrier = t,
-                capital_cost = investment_cost(t,y,techs_d,rt),
+                capital_cost = investment_cost(t,y,techs_d,rt, subsidy_growth),
                 efficiency_store = techs_d.at[(t,'Efficiency'), y],
                 efficiency_dispatch = techs_d.at[(t,'Efficiency'), y],
                 build_year = max([start_year(techs_s,t,years),y]),

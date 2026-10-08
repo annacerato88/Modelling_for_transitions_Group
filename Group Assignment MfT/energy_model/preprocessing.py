@@ -5,8 +5,6 @@ import pandas as pd
 
 def int_extrapolate(df, model_years):
     """Interpolate and extrapolate numeric year columns."""
-    ### YOUR CODE HERE ###
-    # Find columns with a number as name:
     num_cols = [c for c in df.columns if str(c).isnumeric()]
     # make sure numerical columns are treated as floats
     df = df.astype({c: float for c in num_cols})
@@ -16,7 +14,7 @@ def int_extrapolate(df, model_years):
     
     # create temporary df with the same index and all model years
     df_temp = pd.DataFrame(index=df.index,
-                           columns=pd.Index(cols).drop_duplicates()).astype(float)
+                            columns=pd.Index(cols).drop_duplicates()).astype(float)
     
     # fill it with the existing data
     df_temp.loc[:,[c for c in num_cols]] = df.loc[:,[c for c in num_cols]]
@@ -28,13 +26,10 @@ def int_extrapolate(df, model_years):
     df = df[[c for c in df.columns if c not in cols] + model_years]
 
     return df
-    ### 
 
 
 def propagate_profiles(df, model_years, t_res):
     """Resample a profile and propagate it to all model years."""
-    ### YOUR CODE HERE ###
-    # resample and extract year, month, day, hour from the index as separate columns
     df = df.resample(f'{t_res}h').mean()
     
     # store temporal info in separate columns
@@ -62,114 +57,109 @@ def propagate_profiles(df, model_years, t_res):
     ret = pd.concat(profiles_prjs).drop(['year','month','day','hour','new_idx'], axis=1)
     
     return ret
-    ### 
-    
 
 def preprocess_demand(db_dir, years, t_res):
     """Prepare demand data and and demand profiles for the model."""
-    # Refactor the code developed in part 1 of practical.ipynb
-    # to achieve the following functionality:
-    # - import demands, temporal profiles, and demand drivers;
-    # - interpolate/extrapolate the demand drivers;
-    # - project demand using the drivers and exponents
-    #   (TIP: This step involves defining a function
-    #    named project_demand(). Note that it's perfectly
-    #    fine to copy that definition here and have a
-    #    function within a function!);
-    # - propagate and scale the profiles;
-    # - create the MultiIndex used by PyPSA.
-
-    ### YOUR CODE HERE
     # 1. Import and interpolate demand data
     demands = pd.read_excel(f"{db_dir}//demand.xlsx", sheet_name="demands", index_col=0)
     drivers_prj = pd.read_excel(f"{db_dir}//demand.xlsx", sheet_name="drivers")
     demand_profiles = pd.read_excel(f"{db_dir}//demand.xlsx", sheet_name="normalized_profiles").set_index('time')
 
-    # 2. Int/extrapolate demand drivers
+    # 2. NEW: Determine the logistic growth function 
+    def insulation_share(y, K=K, s0=s0, r=r, t0=T0):
+        t = y - t0
+        return K / (1 + ((K - s0) / s0) * np.exp(-r * t))
+    
+    # 3. Int/extrapolate demand drivers
     drivers_prj = int_extrapolate(drivers_prj, model_years=years)
 
-    # 3. Project demand using the drivers and exponents 
     def project_demand(y, driver, start_value, base_year=years[0], dc=1):
         prj = start_value * (drivers_prj[drivers_prj.driver==driver][y].values[0]/drivers_prj[drivers_prj.driver==driver][base_year].values[0])**dc
         return prj
 
+    # 4. We use function to create a dataframe with demand projections called dmd_prj
+    # NEW: If we are taking into consideration Residential heating, we set demand growth according to the the level of insulation
     dmd_prj = pd.DataFrame(index=demands.index, columns=years)
     for i in demands.index:
-        dmd_prj.loc[i,:] = [ 
-                            project_demand(y, demands.loc[i, "Driver"], demands.loc[i, "Start_value"], dc=demands.loc[i, "Exponent"])
-                            for y in years
-                            ]
+        values = []
+        for y in years:
+            start_value = demands.loc[i, "Start_value"]
+        
+            # if the demand has a Total_demand, derive the start value from it
+            if "Total_demand" in demands.columns and pd.notna(demands.loc[i, "Total_demand"]):
+                D = demands.loc[i, "Total_demand"]
+                s = insulation_share(y)
+        
+                if i == "Residential heat low insulation":
+                    start_value = (1 - s) * D
+                elif i == "Residential heat high insulation":
+                    start_value = s * D * (1 - R)
+        
+            values.append(project_demand(y, demands.loc[i, "Driver"], start_value,
+                                             dc=demands.loc[i, "Exponent"]))
+        dmd_prj.loc[i, :] = values
 
-    # 4. Propagate demand profiles to future years and scale them 
+        
     demand_profiles_prj = propagate_profiles(demand_profiles,model_years=years,t_res=t_res)
     for y in years:
         for i in demands.index:
             demand_profiles_prj.loc[str(y),i] *= dmd_prj.loc[i,y]
 
-    # 5. Create a multiindex 
+    # 5. set up multiindex
     demand_profiles_prj.set_index(pd.MultiIndex.from_arrays([demand_profiles_prj.index.year, 
-                                                            demand_profiles_prj.index]), inplace=True)   
-    ### 
-
+                                                                demand_profiles_prj.index]), inplace=True)    
     return demands, demand_profiles_prj
+
+
 
 
 def preprocess_supply(db_dir, years, t_res):
     """Prepare resources, resource parameters, and renewable profiles."""
-    # Refactor the code developed in part 2 of practical.ipynb
-    # to achieve the following functionality:
-    # - import resources, their parameters, and renewable profiles;
-    # - interpolate/extrapolate resource parameters;
-    # - propagate renewable profiles to all periods.
-    
-    ### YOUR CODE HERE ###
+
     # 1. From database/supply import resources, their parameters and the renewable profiles
     resources = pd.read_excel(f"{db_dir}//supply.xlsx", sheet_name='resources')
     resources_pars = pd.read_excel(f"{db_dir}//supply.xlsx", sheet_name='resources_parameters')
     ren_profiles = pd.read_excel(f"{db_dir}//supply.xlsx", sheet_name='ren_profiles', index_col=0)
 
     # 2. Int/extrapolate the resource parameters so that they are defined in all periods
-    resources_pars = int_extrapolate(resources_pars, model_years = years)
+    resources_pars = int_extrapolate(resources_pars, model_years=years)
 
     # 3. Propagate renewable temporal profiles to all periods
-    ren_profiles = propagate_profiles(ren_profiles, model_years = years, t_res = t_res)
+    ren_profiles = propagate_profiles(ren_profiles, model_years=years, t_res=t_res)
 
-    ###
-    
     return resources, resources_pars, ren_profiles
+
 
 
 def preprocess_technologies(db_dir, years, passenger_cars_cf):
     """Prepare static and dynamic technology parameters."""
-    # Refactor the code developed in part 3 of practical.ipynb
-    # to achieve the following functionality:
-    # - import static and dynamic technology parameters;
-    # - interpolate/extrapolate dynamic parameters;
-    # - convert units to those expected by PyPSA.
-    
-    ### YOUR CODE HERE ###
+
     # 1. From database/technologies read all static and dynamic technology parameters
     techs_s = pd.read_excel(f"{db_dir}//technologies.xlsx", sheet_name='static_parameters', index_col=[0,1])
     techs_d = pd.read_excel(f"{db_dir}//technologies.xlsx", sheet_name='dynamic_parameters', index_col=[0,1])
-
+    
     # 2. Int/extrapolate dynamic parameters so that they are defined in all periods 
     techs_d = int_extrapolate(techs_d, model_years=years)
 
     # 3. Fix all units of dynamic parameters
 
     # Cost components are in €/kW or €/kWh, but PyPSA expects them to be in €/MW or €/MWh 
-    # --> if column Unit contains '/kW' or '/kWh', we multiply the corresponding cost components by 1000
+    # --> if column Unit contains '/kW' or '/kWh', multiply the corresponding cost components by 1000
     techs_d.loc[techs_d['Unit'].str.contains('/kW'), years] *= 1e3
     techs_d['Unit'] = techs_d['Unit'].str.replace('/kW','/MW')
 
     # Transport efficiency is in km/MWh, but PyPSA expects it to be in Mkm/MWh (i.e. million km per MWh)
-    techs_d.loc[techs_d['Unit'].str.contains ('km'), years] *= 1e-6
-    techs_d['Unit'] = techs_d['Unit'].str.replace('km', 'Mkm')
+    techs_d.loc[techs_d['Unit'].str.contains('km'), years] *= 1e-6
+    techs_d['Unit'] = techs_d['Unit'].str.replace('km','Mkm')
 
     # Transport capital costs are in €/car, and need to be converted in €/[unit of capacity].
-    techs_d.loc[techs_d['Unit'].str.contains ('/car'), years] *= 1e6 / passenger_cars_cf
-    techs_d['Unit'] = techs_d['Unit'].str.replace('/car','/Mkm/h') 
+    techs_d.loc[techs_d['Unit'].str.contains('/car'), years] *= 1e6/passenger_cars_cf
+    techs_d['Unit'] = techs_d['Unit'].str.replace('/car','/Mkm/h')
 
-    ###
-        
-    return techs_s, techs_d
+    cn = pd.read_excel(f"input_databases/default/technologies.xlsx", sheet_name='capacity_constraints', index_col=[0,1])
+    cn = cn.sort_index()
+    
+    return techs_s, techs_d, cn
+
+
+

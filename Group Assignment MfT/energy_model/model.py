@@ -137,7 +137,7 @@ def model_run(db_dir, years, t_res, passenger_cars_cf, rt, rs, subsidy_growth, K
     # Call the preprocessing functions and store their outputs.
     
     demands, demand_profiles_prj = preprocess_demand(
-            db_dir, years, t_res, K, s0, r, R, T0
+            db_dir, years, t_res, K, s0, R, r, T0
         )
     resources, resources_pars, ren_profiles = preprocess_supply(
             db_dir, years, t_res

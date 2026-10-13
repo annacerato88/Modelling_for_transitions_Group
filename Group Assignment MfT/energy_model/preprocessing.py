@@ -1,6 +1,7 @@
 """Preprocess the Excel input data before building the PyPSA model."""
 
 import pandas as pd
+import numpy as np
 
 
 def int_extrapolate(df, model_years):
@@ -90,9 +91,9 @@ def preprocess_demand(db_dir, years, t_res, K, s0, R, r, T0):
                 D = demands.loc[i, "Total_demand"]
                 s = insulation_share(y)
         
-                if i == "Residential heat low insulation":
+                if i == "residential_heat_low_insulation":
                     start_value = (1 - s) * D
-                elif i == "Residential heat high insulation":
+                elif i == "residential_heat_high_insulation":
                     start_value = s * D * (1 - R)
         
             values.append(project_demand(y, demands.loc[i, "Driver"], start_value,

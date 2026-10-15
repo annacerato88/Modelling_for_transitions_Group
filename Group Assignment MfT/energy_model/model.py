@@ -376,7 +376,8 @@ def model_run(db_dir, years, t_res, passenger_cars_cf, rt, rs, subsidy_growth, K
                         marginal_cost = techs_d.at[(t,'VOM'), y] + bus_cost['bus0'] + bus_cost['bus1']*eff1 + bus_cost['bus2']*eff2 + bus_cost['bus3']*eff3,
                         lifetime = techs_d.at[(t,'Lifetime'), y],
                         efficiency = eff1,
-                        efficiency2 = eff2
+                        efficiency2 = eff2,
+                        efficiency3 = eff3
                         )
 
 

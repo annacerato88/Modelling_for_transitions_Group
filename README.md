@@ -58,3 +58,8 @@ In this assignment, we modified the main model built throughout the course to st
 - 'Total_demand': 84890293 MWh -> total demand for water and space heating in the NL for 2020 [https://ec.europa.eu/eurostat/databrowser/view/NRG_D_HHQ__custom_23114672/default/table]
 
 3. We changed how demand is propagated to be able to sweep K (maximum saturation of highly insulated houses)
+
+### New Parameters 
+Given the changes to the functions, new parameters were added: 
+
+- s(0): 

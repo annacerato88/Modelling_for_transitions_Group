@@ -69,7 +69,7 @@ def preprocess_demand(db_dir, years, t_res, K, s0, R, r, T0):
     # 2. NEW: Determine the logistic growth function 
     def insulation_share(y, K=K, s0=s0, r=r, t0=T0):
         t = y - t0
-        return K / (1 + ((K - s0) / s0) * np.exp(-r * t))
+        return K - (K - s0) * np.exp(-r * t)
     
     # 3. Int/extrapolate demand drivers
     drivers_prj = int_extrapolate(drivers_prj, model_years=years)

@@ -29,18 +29,12 @@ def investment_cost(technology, year, techs_d, rt, subsidy_growth):
     capex = techs_d.at[(technology, 'CAPEX'), year]
 
     # only apply the subsidy mechanism if this technology has a Subsidy row
-    if (technology, 'Subsidy') in techs_d.index: 
+    if (technology, 'Subsidy') in techs_d.index:
         subsidy = techs_d.at[(technology, 'Subsidy'), year]
-
-        # if no subsidy this year and subsidy growth is higher than 0 [so not baseline scenario], take the previous year's subsidy
-        if subsidy == 0 and subsidy_growth > 0.0:
-            years = list(techs_d.columns)
-            i = years.index(year)
-            if i > 0:
-                subsidy = techs_d.at[(technology, 'Subsidy'), years[i - 1]]
-
-        subsidy = subsidy * (1 + subsidy_growth)
-        capex = max(capex - subsidy, 0) # a subsidy shouldn't make CAPEX negative
+        if pd.notna(subsidy):
+            if year >= 2030:                             # growth only from 2030 onwards
+                subsidy = subsidy * (1 + subsidy_growth)
+            capex = max(capex - subsidy, 0)              # subsidy can't make CAPEX negative
 
     fom = techs_d.at[(technology,'FOM'),year] 
     lt = techs_d.at[(technology,'Lifetime'),year]

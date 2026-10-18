@@ -40,6 +40,30 @@ def investment_cost(technology, year, techs_d, rt, subsidy_growth):
     lt = techs_d.at[(technology,'Lifetime'),year]
     return (capex*annuity(rt, lt) + fom) # (€/activity output unit) 
 
+# NEW: we need a function to calcuate the total subsidy spent in each scenario 
+def total_subsidy_spent(n, techs_d, rt, subsidy_growth, tech="Residential heat pump"):
+    total = 0.0
+    links = n.links[(n.links.carrier == tech) & n.links.p_nom_extendable]
+
+    for _, link in links.iterrows():
+        year = int(link.build_year)
+
+        capex = techs_d.at[(tech, 'CAPEX'), year]
+        subsidy = techs_d.at[(tech, 'Subsidy'), year]
+        if pd.isna(subsidy):
+            continue
+        if year >= 2030:                                  # same rule as investment_cost
+            subsidy = subsidy * (1 + subsidy_growth)
+        subsidy = min(subsidy, capex)                     # same cap as max(capex - subsidy, 0)
+
+        # convert CAPEX units to the network's capacity units
+        fom = techs_d.at[(tech, 'FOM'), year]
+        lt = techs_d.at[(tech, 'Lifetime'), year]
+        scale = link.capital_cost / ((capex - subsidy) * annuity(rt, lt) + fom)
+
+        total += subsidy * scale * link.p_nom_opt
+    return total
+
 
 def techs_by_type(techs_s, t): 
     """Retrieve a list with all techs of type t (e.g link, generator, etc.)"""

@@ -371,7 +371,9 @@ def model_run(db_dir, years, t_res, passenger_cars_cf, rt, rs, subsidy_growth, K
                         marginal_cost = techs_d.at[(t,'VOM'), y] + bus_cost['bus0'] + bus_cost['bus1']*eff1 + bus_cost['bus2']*eff2,
                         lifetime = techs_d.at[(t,'Lifetime'), y],
                         efficiency = eff1,
-                        efficiency2 = eff2
+                        efficiency2 = eff2,
+                        p_nom_max = cap_constraints.at[(t,'max'),y]/ techs_d.at[(t,'Efficiency'), y],
+                        p_nom_min = cap_constraints.at[(t,'min'),y]/ techs_d.at[(t,'Efficiency'), y],
                         )
 
                 # 3. Link with four buses (e.g. links with emissions + carbon storage)
@@ -395,7 +397,9 @@ def model_run(db_dir, years, t_res, passenger_cars_cf, rt, rs, subsidy_growth, K
                         lifetime = techs_d.at[(t,'Lifetime'), y],
                         efficiency = eff1,
                         efficiency2 = eff2,
-                        efficiency3 = eff3
+                        efficiency3 = eff3,
+                        p_nom_max = cap_constraints.at[(t,'max'),y]/ techs_d.at[(t,'Efficiency'), y],
+                        p_nom_min = cap_constraints.at[(t,'min'),y]/ techs_d.at[(t,'Efficiency'), y],
                         )
 
 
